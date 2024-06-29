@@ -1,0 +1,445 @@
+"Slow movement alerts"
+
+Sub AlerteSM()
+
+    Dim cell As Range
+    Dim texte As String
+    Dim ws As Worksheet
+    Dim materialColumn As Range
+    Dim materialColIndex As Long
+    Dim uniqueMaterials As Object
+    
+    ' Create a Dictionary to store unique materials
+    Set uniqueMaterials = CreateObject("Scripting.Dictionary")
+    
+    ' Set the worksheet
+    Set ws = ThisWorkbook.Sheets("Inventory Status")
+    
+    ' Find the "Material" column 
+    Set materialColumn = ws.Rows(7).Find(What:="Material", LookIn:=xlValues, LookAt:=xlWhole)
+    
+    ' Check if "Material" column was found
+    If materialColumn Is Nothing Then
+        MsgBox "Material column not found.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Get the column index of the "Material" column
+    materialColIndex = materialColumn.Column
+    
+    ' Initialize the texte variable
+    texte = ""
+    
+    ' Loop through each cell in the specified range
+    For Each cell In ws.Range("AlerteSM")
+        ' Check if the cell value is 0
+        If cell.Value = 0 Then
+            ' Get the product name from the "Material" column
+            Dim materialName As String
+            materialName = ws.Cells(cell.Row, materialColIndex).Value
+            
+            ' Add the product name to the dictionary if not already present
+            If Not uniqueMaterials.exists(materialName) Then
+                uniqueMaterials.Add materialName, Nothing
+                ' Append the product name to the texte variable
+                texte = texte & materialName & vbCrLf
+            End If
+        End If
+    Next cell
+    
+    ' Display the message box if texte is not empty
+    If texte <> "" Then
+        MsgBox "Low Turnover Product Alert:" & vbCrLf & texte, vbCritical
+    Else
+        MsgBox "No low turnover products found.", vbInformation
+    End If
+
+End Sub
+
+"Display of slow-moving products"
+
+Sub FilterAndCopyRows()
+    Dim wsSource As Worksheet
+    Dim wsTarget As Worksheet
+    Dim sourceRange As Range
+    Dim cell As Range
+    Dim targetRow As Long
+    Dim headerRange As Range
+
+    ' Define the source and destination sheets
+    Set wsSource = Worksheets("Inventory Status")
+    Set wsTarget = Worksheets("SM Alert")
+    
+  ' Clear all current content in the target sheet
+    wsTarget.Cells(5, 5).Resize(wsTarget.Rows.Count - 4, wsTarget.Columns.Count - 4).ClearContents
+
+    ' Define the source data range using the range name
+    Set sourceRange = wsSource.Range("TableInventoryStatus2")
+
+    ' Copy the header from the source to the target
+    Set headerRange = sourceRange.Rows(1)
+    headerRange.Copy Destination:=wsTarget.Cells(6, 5)
+
+    ' Find the first empty row in the destination sheet
+    targetRow = 7
+
+    ' Loop through each cell in the defined range
+    For Each cell In sourceRange.Columns(1).Cells
+       
+        If wsSource.Cells(cell.Row, 12).Value = 0 Then
+            
+            sourceRange.Rows(cell.Row - sourceRange.Row + 1).Copy Destination:=wsTarget.Cells(targetRow, 5)
+            
+            targetRow = targetRow + 1
+        End If
+    Next cell
+
+    ' Activate the SM Alert sheet
+    wsTarget.Activate
+End Sub
+
+"Automatic email sending for slow-moving materials"
+
+Sub SlowMouvementMail()
+    Dim wsInventory As Worksheet
+    Dim wsTemplate As Worksheet
+    Dim wsLogisticsTeams As Worksheet
+    
+    Dim OutlookApp As Object
+    Dim OutlookMail As Object
+    Dim lastRowInventory As Long
+    Dim lastRowLogisticsTeams As Long
+    Dim i As Long
+    Dim j As Long
+    
+    Dim contactName As String
+    Dim material As String
+    Dim batch As String
+    Dim storageBin As String
+    Dim lastMovement As String
+    
+    Dim EmailTo As String
+  
+    Dim Subject As String
+    Dim Message As String
+    Dim Email_ID As String
+    
+    Dim templateRow As Long
+
+    ' Set worksheets
+    Set wsInventory = ThisWorkbook.Sheets("Inventory status")
+    Set wsTemplate = ThisWorkbook.Sheets("Email Template DB")
+    Set wsLogisticsTeams = ThisWorkbook.Sheets("Logistics Teams")
+    
+    ' Find the last rows with data
+    lastRowInventory = wsInventory.Cells(wsInventory.Rows.Count, "L").End(xlUp).Row
+    lastRowLogisticsTeams = wsLogisticsTeams.Cells(wsLogisticsTeams.Rows.Count, "A").End(xlUp).Row
+    
+    ' Initialize Outlook application
+    On Error Resume Next
+    Set OutlookApp = GetObject(class:="Outlook.Application")
+    If OutlookApp Is Nothing Then Set OutlookApp = CreateObject(class:="Outlook.Application")
+    On Error GoTo 0
+    
+    ' Check if Outlook is available
+    If OutlookApp Is Nothing Then
+        MsgBox "Outlook is not available.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Loop through the Inventory status sheet
+    For i = 7 To lastRowInventory '
+        If wsInventory.Cells(i, "SM").Value = "0" Then
+            
+material = wsInventory.Cells(i, "Material").Value
+            batch = wsInventory.Cells(i, "Batch").Value
+            storageBin = wsInventory.Cells(i, "Storage Bin").Value
+            lastMovement = wsInventory.Cells(i, "Last Movement").Value
+            
+            ' Find email template for low turnover
+            templateRow = 0
+            For j = 2 To wsTemplate.Cells(wsTemplate.Rows.Count, "A").End(xlUp).Row
+                If wsTemplate.Cells(j, "Email Name").Value = "Low turnover" Then
+                    templateRow = j
+                    Exit For
+                End If
+            Next j
+            
+            If templateRow > 0 Then
+                Subject = wsTemplate.Cells(templateRow, "Subject").Value
+                Message = wsTemplate.Cells(templateRow, "Body").Value
+                
+                ' Replace placeholders with actual values
+            
+                Message = Replace(Message, " [Description1]", material)
+                Message = Replace(Message, " [Description2]", batch)
+                Message = Replace(Message, " [Description3]", storageBin)
+                Message = Replace(Message, " [Description4]", lastMovement)
+                
+                ' Collect email addresses from the Logistics Teams sheet
+                EmailTo = ""
+                For j = 2 To lastRowLogisticsTeams
+                    If EmailTo <> "" Then EmailTo = EmailTo & "; "
+                    EmailTo = EmailTo & wsLogisticsTeams.Cells(j, "Emails Logistics Teams ").Value
+                Next j
+                
+                ' Create and send email
+                Set OutlookMail = OutlookApp.CreateItem(0)
+                With OutlookMail
+                    .To = EmailTo
+                    .Subject = Subject
+                    .body = Message
+                    .Send
+                End With
+            End If
+        End If
+    Next i
+
+    MsgBox "The alert email for slow movement was successfully sent to the logistics team ", vbInformation
+End Sub
+
+"Expired product alerts"
+
+Sub AlerteProduitsPerimes()
+
+    Dim cell As Range
+    Dim ws As Worksheet
+    Dim materialColumn As Range
+    Dim materialColIndex As Long
+    Dim expiredMaterials As Object
+    Dim nearingExpirationMaterials As Object
+    Dim expiredProductsExist As Boolean
+    
+    ' Create dictionaries to store unique materials for each category
+    Set expiredMaterials = CreateObject("Scripting.Dictionary")
+    Set nearingExpirationMaterials = CreateObject("Scripting.Dictionary")
+    
+    ' Set the worksheet
+    Set ws = ThisWorkbook.Sheets("Inventory Status")
+    
+    ' Find the "Material" column 
+    Set materialColumn = ws.Rows(7).Find(What:="Material", LookIn:=xlValues, LookAt:=xlWhole)
+    
+    ' Check if "Material" column was found
+    If materialColumn Is Nothing Then
+        MsgBox "Material column not found.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Get the column index of the "Material" column
+    materialColIndex = materialColumn.Column
+    
+    ' Initialize variables
+    expiredProductsExist = False
+    
+    ' Loop through each cell in the specified range to find expired products and products nearing expiration
+    For Each cell In ws.Range("AlertExpMaterial")
+        If cell.Value = 0 Then
+            ' Product expired
+            If Not expiredMaterials.exists(ws.Cells(cell.Row, materialColIndex).Value) Then
+                expiredMaterials.Add ws.Cells(cell.Row, materialColIndex).Value, Nothing
+                expiredProductsExist = True
+            End If
+        ElseIf cell.Value = 1 Then
+            ' Product nearing expiration
+            If Not nearingExpirationMaterials.exists(ws.Cells(cell.Row, materialColIndex).Value) Then
+                nearingExpirationMaterials.Add ws.Cells(cell.Row, materialColIndex).Value, Nothing
+                expiredProductsExist = True
+            End If
+        End If
+    Next cell
+    
+    ' Prepare messages
+    Dim textePerimes As String
+    Dim texteProchePeremption As String
+    
+    ' Build message for expired products
+    If expiredProductsExist Then
+        textePerimes = "Expired Products Alert:" & vbCrLf & Join(expiredMaterials.keys, vbCrLf) & vbCrLf
+    Else
+        textePerimes = "No expired products found." & vbCrLf
+    End If
+    
+    ' Build message for products nearing expiration
+    If nearingExpirationMaterials.Count > 0 Then
+        texteProchePeremption = "Products Nearing Expiration Alert:" & vbCrLf & Join(nearingExpirationMaterials.keys, vbCrLf)
+    Else
+        texteProchePeremption = "No products nearing expiration found."
+    End If
+    
+    ' Display message boxes
+    MsgBox textePerimes & vbCrLf & texteProchePeremption, vbInformation
+
+End Sub
+
+"Display of expired or near-expiry products"
+
+ Sub FilterAndCopyRows()
+    Dim wsSource As Worksheet
+    Dim wsTarget As Worksheet
+    Dim sourceRange As Range
+    Dim cell As Range
+    Dim targetRow1 As Long
+  Dim targetRow2 As Long
+    Dim headerRange As Range
+
+    ' Define the source and destination sheets
+    Set wsSource = Worksheets("Inventory Status")
+    Set wsTarget = Worksheets("EXP Alert")
+    
+  'Clear all current content in the target sheet
+    wsTarget.Cells(6, 5).Resize(wsTarget.Rows.Count - 5, wsTarget.Columns.Count - 4).ClearContents
+
+    ' Define the source data range using the range name
+    Set sourceRange = wsSource.Range("TableInventoryStatus2")
+
+    ' Copy the header from the source to the target
+    Set headerRange = sourceRange.Rows(1)
+    headerRange.Copy Destination:=wsTarget.Cells(6, 5)
+
+' Find the first empty row in the destination sheet
+    targetRow1 = 7
+targetRow2 = 7
+
+   'Loop through each cell in the defined range
+For Each cell In sourceRange.Columns(1).Cells
+   
+    If wsSource.Cells(cell.Row, 15).Value = 0 Then
+  
+        sourceRange.Rows(cell.Row - sourceRange.Row + 1).Copy Destination:=wsTarget.Cells(targetRow1, 5)
+     
+        targetRow1 = targetRow1 + 1
+    ElseIf wsSource.Cells(cell.Row, 15).Value = 1 Then
+       
+        sourceRange.Rows(cell.Row - sourceRange.Row + 1).Copy Destination:=wsTarget.Cells(targetRow2, 14)
+        
+        targetRow2 = targetRow2 + 1
+    End If
+Next cell
+ 
+"Sending emails for expired and near-expiry products"
+Sub ExpiresAndNearlyExpiredMaterial()
+    Dim wsInventory As Worksheet
+    Dim wsTemplate As Worksheet
+    Dim wsLogisticsTeams As Worksheet
+    
+    Dim OutlookApp As Object
+    Dim OutlookMail As Object
+    Dim lastRowInventory As Long
+    Dim lastRowLogisticsTeams As Long
+    Dim i As Long
+    Dim j As Long
+    
+    Dim material As String
+    Dim batch As String
+    Dim storageBin As String
+    Dim ExpirationDate As String
+    
+    Dim EmailTo As String
+    
+    Dim Subject As String
+    Dim Message As String
+    
+    Dim templateRow As Long
+    Dim EmailName As String
+    
+    Dim sentNearlyExpired As Boolean
+    Dim sentExpiredItems As Boolean
+
+    ' Set worksheets
+    Set wsInventory = ThisWorkbook.Sheets("Inventory status")
+    Set wsTemplate = ThisWorkbook.Sheets("Email Template DB")
+    Set wsLogisticsTeams = ThisWorkbook.Sheets("Logistics Teams")
+    
+    ' Find the last rows with data
+    lastRowInventory = wsInventory.Cells(wsInventory.Rows.Count, "A").End(xlUp).Row
+    lastRowLogisticsTeams = wsLogisticsTeams.Cells(wsLogisticsTeams.Rows.Count, "A").End(xlUp).Row
+    
+    ' Initialize Outlook application
+    On Error Resume Next
+    Set OutlookApp = GetObject(class:="Outlook.Application")
+    If OutlookApp Is Nothing Then Set OutlookApp = CreateObject(class:="Outlook.Application")
+    On Error GoTo 0
+    
+    ' Check if Outlook is available
+    If OutlookApp Is Nothing Then
+        MsgBox "Outlook is not available.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Loop through the Inventory status sheet
+    For i = 7 To lastRowInventory '
+        If wsInventory.Cells(i, "EM").Value = 0 Or wsInventory.Cells(i, "EM").Value = 1 Then
+            material = wsInventory.Cells(i, 7).Value
+            batch = wsInventory.Cells(i, 6).Value
+            storageBin = wsInventory.Cells(i, 5).Value
+            ExpirationDate = wsInventory.Cells(i, 10).Value
+            
+            ' Determine the email name based on the value in the "EM" column
+            If wsInventory.Cells(i, "EM").Value = 0 Then
+                EmailName = "Nearly Expired"
+            ElseIf wsInventory.Cells(i, "EM").Value = 1 Then
+                EmailName = "Expired Items"
+            End If
+            
+            ' Find email template for the determined email name
+            templateRow = 0
+            For j = 2 To wsTemplate.Cells(wsTemplate.Rows.Count, "A").End(xlUp).Row
+                If wsTemplate.Cells(j, 2).Value = EmailName Then
+                    templateRow = j
+                    Exit For
+                End If
+            Next j
+            
+            If templateRow > 0 Then
+                Subject = wsTemplate.Cells(templateRow, 4).Value
+                Message = wsTemplate.Cells(templateRow, 5).Value
+                
+                If EmailName = "Expired Items" Then
+                    Subject = "Urgent Action Needed: Expired Items in Inventory"
+                ElseIf EmailName = "Nearly Expired" Then
+                    Subject = "Attention Required: Items Approaching Expiration"
+                End If
+                
+                ' Replace placeholders with actual values
+                Message = Replace(Message, "[Description1]", material)
+                Message = Replace(Message, "[Description2]", batch)
+                Message = Replace(Message, "[Description3]", storageBin)
+                Message = Replace(Message, "[Description4]", ExpirationDate)
+                
+                ' Collect email addresses from the Logistics Teams sheet
+                EmailTo = ""
+                For j = 2 To lastRowLogisticsTeams
+                    If EmailTo <> "" Then EmailTo = EmailTo & "; "
+                    EmailTo = EmailTo & wsLogisticsTeams.Cells(j, 2).Value
+                Next j
+                
+                ' Create and send email
+                Set OutlookMail = OutlookApp.CreateItem(0)
+                With OutlookMail
+                    .To = EmailTo
+                    .Subject = Subject
+                    .body = Message
+                    .Send
+                End With
+                
+                ' Set flags for message boxes
+                If EmailName = "Expired Items" Then
+                    sentExpiredItems = True
+                ElseIf EmailName = "Nearly Expired" Then
+                    sentNearlyExpired = True
+                End If
+            End If
+        End If
+    Next i
+
+    ' Show message boxes based on flags
+    If sentNearlyExpired Then
+        MsgBox "The email alert for nearly expired products has been sent to logistics teams", vbInformation
+     If sentExpiredItems Then
+        MsgBox "The email alert for expired products has been sent to logistics teams.", vbInformation
+    End If
+    MsgBox "The email alert for expired products has been sent to logistics teams", vbInformation
+    End If
+    
+End Sub
