@@ -1,0 +1,98 @@
+'Ouverture des fichiers 
+
+Sub OuvrirReception_Tracking()
+Dim ws As Worksheet
+    ' Vérifier si l'utilisateur est connecté
+ If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True
+' Spécifiez le nom de la feuille à ouvrir
+     Set ws = ThisWorkbook.Sheets("Reception Tracking")
+ ' Affiche la feuille spécifiée
+    ws.Activate
+End If
+End Sub
+
+Sub OuvrirInventory_Status()
+    Dim ws As Worksheet
+    If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True
+    Set ws = ThisWorkbook.Sheets("Inventory Status")
+    ws.Activate
+End If
+End Sub
+
+Sub OuvrirOrderTracking()
+    Dim ws As Worksheet
+    If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True
+    Set ws = ThisWorkbook.Sheets("Order Projection Tracking")
+    ws.Activate
+End If
+End Sub
+
+Sub OuvrirDashboard()
+    Dim ws As Worksheet
+    If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True
+    Set ws = ThisWorkbook.Sheets("Dashboard")
+    ws.Activate
+    End If
+End Sub
+
+Sub OuvrirHome()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("Home")
+    ws.Activate
+   End Sub
+
+Sub OuvrirSuppliers()
+    Dim ws As Worksheet
+    If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True
+    Set ws = ThisWorkbook.Sheets("Suppliers")
+    ws.Activate
+    End If
+    End Sub
+
+Sub OuvrirInventory_Report()
+    Dim ws As Worksheet
+    If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True
+    Set ws = ThisWorkbook.Sheets("Inventory Report ")
+    ws.Activate
+    End If
+    End Sub
+
+Sub OuvrirSMAlert()
+    Dim ws As Worksheet
+    If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True 
+    Set ws = ThisWorkbook.Sheets("SM Alert")
+    ws.Activate
+    End If
+    End Sub
+
+Sub OuvrirEXPAlert()
+    Dim ws As Worksheet
+    If ConnexionReussie = False Then
+        MsgBox "Please connect first", vbExclamation
+        Exit Sub
+    Else: ConnexionReussie = True
+     Set ws = ThisWorkbook.Sheets("EXP Alert")
+ ws.Activate
+ End If
+ End Sub
