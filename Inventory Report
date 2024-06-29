@@ -1,0 +1,135 @@
+"Color alert for items with gaps"
+
+Sub ColorNonZeroRowsInNamedRange()
+    Dim ws As Worksheet
+    Dim rng As Range
+    Dim colIndex As Integer
+    Dim lastRow As Long
+    Dim rowRange As Range
+    Dim cell As Range
+    Dim startRow As Long
+    
+    Set ws = ThisWorkbook.Sheets("Inventory Report ")
+   
+    On Error Resume Next
+    Set rng = ws.Range("TableInventoryReport")
+    On Error GoTo 0
+    
+    If rng Is Nothing Then
+        MsgBox "La plage nommée 'TableInventoryReport' n'existe pas sur la feuille 'Inventory Report '.", vbCritical
+        Exit Sub
+    End If
+   
+    colIndex = 8
+    
+    lastRow = rng.Rows.Count
+    
+    startRow = rng.Row + 1
+    
+    For Each rowRange In ws.Range(ws.Cells(startRow, rng.Column), ws.Cells(rng.Row + rng.Rows.Count, rng.Columns.Count + rng.Column - 1)).Rows
+        ' Check if the value in the specified column is not equal to zero
+        If ws.Cells(rowRange.Row, colIndex).Value <> 0 Then
+            ' Color the entire row in red, but first check if it's not the header
+            If rowRange.Row > rng.Row Then
+                For Each cell In rowRange.Cells
+                    cell.Interior.Color = RGB(255, 0, 0)
+                Next cell
+            End If
+        End If
+    Next rowRange
+End Sub
+
+"Sending alert emails for items with gaps"
+
+Sub InventoryGapsAlert()
+    Dim wsInventory As Worksheet
+    Dim wsTemplate As Worksheet
+    Dim wsLogisticsTeams As Worksheet
+    
+    Dim OutlookApp As Object
+    Dim OutlookMail As Object
+    Dim lastRowInventory As Long
+    Dim lastRowLogisticsTeams As Long
+    Dim i As Long
+    Dim j As Long
+    
+    Dim material As String
+    Dim sku As String ' Corrected variable name
+    Dim EmailTo As String
+    Dim Subject As String
+    Dim Message As String
+    
+    Dim templateRow As Long
+    Dim EmailName As String
+    
+    ' Set worksheets
+    Set wsInventory = ThisWorkbook.Sheets("Inventory Report ")
+    Set wsTemplate = ThisWorkbook.Sheets("Email Template DB")
+    Set wsLogisticsTeams = ThisWorkbook.Sheets("Logistics Teams")
+    
+    ' Find the last rows with data
+    lastRowInventory = wsInventory.Cells(wsInventory.Rows.Count, "A").End(xlUp).Row
+    lastRowLogisticsTeams = wsLogisticsTeams.Cells(wsLogisticsTeams.Rows.Count, "A").End(xlUp).Row
+    
+    ' Initialize Outlook application
+    On Error Resume Next
+    Set OutlookApp = GetObject(class:="Outlook.Application")
+    If OutlookApp Is Nothing Then Set OutlookApp = CreateObject(class:="Outlook.Application")
+    On Error GoTo 0
+    
+    ' Check if Outlook is available
+    If OutlookApp Is Nothing Then
+        MsgBox "Outlook n'est pas disponible.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Loop through inventory report to find red-colored rows
+    For i = 2 To lastRowInventory ' Assuming data starts from row 2 and column A
+        
+        ' Check if the row is colored red
+        If wsInventory.Rows(i).Interior.Color = RGB(255, 0, 0) Then
+            
+            ' Retrieve information from inventory report
+            material = wsInventory.Cells(i, "E").Value
+            sku = wsInventory.Cells(i, "F").Value
+          
+            EmailName = "Alert Gaps" ' Corrected variable assignment
+            
+            ' Find email template for the determined email name
+            templateRow = 0
+            For j = 2 To wsTemplate.Cells(wsTemplate.Rows.Count, "A").End(xlUp).Row
+                If wsTemplate.Cells(j, "A").Value = EmailName Then ' Corrected column reference
+                    templateRow = j
+                    Exit For
+                End If
+            Next j
+            
+            If templateRow > 0 Then
+                Subject = wsTemplate.Cells(templateRow, "B").Value ' Adjusted column reference
+                Message = wsTemplate.Cells(templateRow, "C").Value ' Adjusted column reference
+                
+                ' Replace placeholders with actual values
+                Message = Replace(Message, "[Material]", material)
+                Message = Replace(Message, "[Batch]", sku)
+                
+                ' Collect email addresses from the Logistics Teams sheet
+                EmailTo = ""
+                For j = 2 To lastRowLogisticsTeams
+                    If EmailTo <> "" Then EmailTo = EmailTo & "; "
+                    EmailTo = EmailTo & wsLogisticsTeams.Cells(j, "B").Value ' Adjusted column reference
+                Next j
+                
+                ' Create and send email
+                Set OutlookMail = OutlookApp.CreateItem(0)
+                With OutlookMail
+                    .To = EmailTo
+                    .Subject = Subject
+                    .body = Message
+                    .Send
+                End With
+            End If
+        End If
+    Next i
+
+    MsgBox "The alert emails for Gaps Inventory have been successfully sent to the logistics team", vbInformation
+End Sub
