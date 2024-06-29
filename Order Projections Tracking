@@ -1,0 +1,115 @@
+Sub AutomaticordergenerationAlert()
+    Dim ws As Worksheet
+    Dim wsLogistics As Worksheet
+    Dim lastRow As Long, lastRowLogistics As Long
+    Dim materialCol As Integer, skuCol As Integer
+    Dim alertThreshold As Integer
+    Dim i As Long, j As Integer
+    Dim constantCount As Integer
+    Dim constantAlert As Boolean
+    Dim recipientEmails As String
+    Dim OutlookApp As Object
+    Dim OutlookMail As Object
+    Dim EmailTo As String
+    Dim templateRow As Long
+    Dim Subject As String, Message As String
+    Dim wsTemplate As Worksheet
+    Dim material As String, sku As String
+    
+    ' Initialize Outlook application
+    Set OutlookApp = CreateObject("Outlook.Application")
+
+    ' Set worksheets
+    Set ws = ThisWorkbook.Sheets("Order Projection Tracking")
+    Set wsLogistics = ThisWorkbook.Sheets("Logistics Teams")
+    Set wsTemplate = ThisWorkbook.Sheets("Email Template DB")
+    
+    ' Find last rows in worksheets
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    lastRowLogistics = wsLogistics.Cells(wsLogistics.Rows.Count, "A").End(xlUp).Row
+    
+    ' Columns for Material and SKU
+    materialCol = 5 ' Column E
+    skuCol = 6 ' Column F
+    
+    ' Alert threshold for constant count
+    alertThreshold = 9
+    
+    ' Retrieve email addresses of logistics teams
+    recipientEmails = ""
+    For i = 2 To lastRowLogistics
+        If recipientEmails = "" Then
+            recipientEmails = wsLogistics.Cells(i, 1).Value
+        Else
+            recipientEmails = recipientEmails & ";" & wsLogistics.Cells(i, 1).Value
+        End If
+    Next i
+    
+    ' Loop through rows in the order projection sheet
+    For i = 7 To lastRow
+        constantCount = 0
+        constantAlert = False
+        
+        ' Loop through columns 
+        For j = 7 To ws.Cells(i, ws.Columns.Count).End(xlToLeft).Column
+            ' Compare current value with previous value in the same row
+            If ws.Cells(i, j).Value = ws.Cells(i, j - 1).Value Then
+                constantCount = constantCount + 1
+                If constantCount >= alertThreshold - 1 Then ' Minus one to exclude SKU column
+                    constantAlert = True
+                    Exit For
+                End If
+            Else
+                constantCount = 0
+            End If
+        Next j
+        
+        ' If constant alert condition met, proceed to send email
+        If constantAlert Then
+            ' Get Material and SKU values
+            material = ws.Cells(i, materialCol).Value
+            sku = ws.Cells(i, skuCol).Value
+            
+            ' Find appropriate email template in Email Templates sheet
+            templateRow = 0
+            For j = 2 To wsTemplate.Cells(wsTemplate.Rows.Count, "A").End(xlUp).Row
+                If wsTemplate.Cells(j, "Email Name").Value = "Automatic order generation" Then
+                    templateRow = j
+                    Exit For
+                End If
+            Next j
+            
+            If templateRow > 0 Then
+                Subject = wsTemplate.Cells(templateRow, "Subject").Value
+                Message = wsTemplate.Cells(templateRow, "Body").Value
+                
+                ' Replace placeholders with actual values
+                Message = Replace(Message, "[Description1]", material)
+                Message = Replace(Message, "[Description2]", sku)
+                
+                ' Collect email addresses from the Logistics Teams sheet
+                EmailTo = ""
+                For j = 2 To lastRowLogistics
+                    If EmailTo <> "" Then EmailTo = EmailTo & "; "
+                    EmailTo = EmailTo & wsLogistics.Cells(j, 1).Value
+                Next j
+                
+                ' Create and send email
+                Set OutlookMail = OutlookApp.CreateItem(0)
+                With OutlookMail
+                    .To = EmailTo
+                    .Subject = Subject
+                    .body = Message
+                    .Send
+                End With
+            End If
+        End If
+    Next i
+    
+    ' Display completion message
+    MsgBox "The alert email regarding automatic order generation has been sent to the logistics team", vbInformation
+    
+    ' Clean up Outlook objects
+    Set OutlookMail = Nothing
+    Set OutlookApp = Nothing
+End Sub
