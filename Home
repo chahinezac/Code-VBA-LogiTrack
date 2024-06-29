@@ -1,4 +1,49 @@
-'Ouverture des fichiers 
+"Home" 
+
+"User identification form"
+
+Private Sub Log_in_Click()
+    
+
+    Dim ws As Worksheet
+    Dim username As String
+    Dim password As String
+    Dim found As Boolean
+    Dim i As Long
+    
+    Set ws = ThisWorkbook.Sheets("Authentication")
+    
+  ‘ Retrieve the values from the TextBoxes
+    username = TextBox1.Value
+    password = TextBox2.Value
+    
+    found = False
+    For i = 2 To ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+        If ws.Cells(i, 1).Value = username And ws.Cells(i, 2).Value = password Then
+            found = True
+            Exit For
+        End If
+    Next i
+    
+    ' Display a message based on the result
+    If found Then
+        MsgBox "Authentication successful!"
+        
+         MacrosDesactivees = False
+        
+        Unload Me ' Ferme le formulaire après authentification réussie
+        
+    ConnexionReussie = True
+    
+    AfficherToutesLesFeuilles
+    
+    Else
+        MsgBox "Incorrect username or password."
+    End If
+End Sub
+
+
+"Opening files"
 
 Sub OuvrirReception_Tracking()
 Dim ws As Worksheet
