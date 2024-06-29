@@ -1,0 +1,225 @@
+"Lead time confirmation"
+
+Sub ComfirmationLeadsTimes()
+    Dim wsTracking As Worksheet
+    Dim wsTemplate As Worksheet
+    Dim wsSupplier As Worksheet
+    Dim wsLogisticsTeams As Worksheet
+    
+    Dim OutlookApp As Object
+    Dim OutlookMail As Object
+    Dim lastRowTracking As Long
+    Dim lastRowSupplier As Long
+    Dim lastRowLogisticsTeams As Long
+    Dim i As Long
+    Dim j As Long
+    
+    Dim Name As String
+    Dim material As String
+    Dim Description As String
+    Dim Delivery_Status As String
+    
+    Dim EmailSupplier As String
+    Dim EmailCC As String
+    
+    Dim Subject As String
+    Dim Message As String
+    Dim Email_ID As String
+Dim ID_Employee As String
+    
+    Dim templateRow As Long
+
+    ' Set worksheets
+    Set wsTracking = ThisWorkbook.Sheets("Reception Tracking")
+    Set wsTemplate = ThisWorkbook.Sheets("Email template DB")
+    Set wsSupplier = ThisWorkbook.Sheets("Suppliers")
+    Set wsLogisticsTeams = ThisWorkbook.Sheets("Logistics Teams")
+    
+    ' Find the last rows with data
+    lastRowTracking = wsTracking.Cells(wsTracking.Rows.Count, "A").End(xlUp).Row
+    lastRowSupplier = wsSupplier.Cells(wsSupplier.Rows.Count, "A").End(xlUp).Row
+    lastRowLogisticsTeams = wsLogisticsTeams.Cells(wsLogisticsTeams.Rows.Count, "A").End(xlUp).Row
+    
+    ' Initialize Outlook application
+    On Error Resume Next
+    Set OutlookApp = GetObject(class:="Outlook.Application")
+    If OutlookApp Is Nothing Then Set OutlookApp = CreateObject(class:="Outlook.Application")
+    On Error GoTo 0
+    
+    ' Check if Outlook is available
+    If OutlookApp Is Nothing Then
+        MsgBox "Outlook is not available.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Loop through the Reception Tracking sheet
+    For i = 7 To lastRowTracking ' Assume headers in row 1
+        Name = wsTracking.Cells(i, "F").Value
+        material = wsTracking.Cells(i, "G").Value
+        Description = wsTracking.Cells(i, "H").Value
+        Delivery_Status = wsTracking.Cells(i, "N").Value
+        
+        ' Find supplier email
+        EmailSupplier = ""
+        For j = 6 To lastRowSupplier ' Assume headers in row 1
+            If wsSupplier.Cells(j, "F").Value = Name Then
+                EmailSupplier = wsSupplier.Cells(j, "G").Value
+                Exit For
+            End If
+        Next j
+        
+       ' Find logistics team emails for CC
+EmailCC = ""
+For j = 1 To lastRowLogisticsTeams '
+If wsLogisticsTeams.Cells(j, "A").Value = Name Then
+If EmailCC <> "" Then EmailCC = EmailCC & "; " ' Separate multiple emails with semicolon End If
+EmailCC = EmailCC & wsLogisticsTeams.Cells(j, "B").Value
+
+ End If
+Next j
+        
+        ' Determine the type of email to send
+        If Delivery_Status = "Late" Then
+            Email_ID = "1"
+        ElseIf Delivery_Status = "Early" Then
+            Email_ID = "2"
+        Else
+            Email_ID = ""
+        End If
+        
+        ' Find the corresponding template row
+        templateRow = 0
+        For j = 2 To wsTemplate.Cells(wsTemplate.Rows.Count, "E").End(xlUp).Row
+            If wsTemplate.Cells(j, "A").Value = Email_ID Then
+                templateRow = j
+                Exit For
+            End If
+        Next j
+        
+        If templateRow > 0 And EmailSupplier <> "" Then
+            Subject = wsTemplate.Cells(templateRow, "D").Value
+            Message = wsTemplate.Cells(templateRow, "E").Value
+            
+            ' Replace placeholders with actual values
+            Message = Replace(Message, "Dear [Supplier's Name]", "Dear " & Name)
+            Message = Replace(Message, "[Name de produit]", Description)
+            
+            ' Create and send email
+            Set OutlookMail = OutlookApp.CreateItem(0)
+            With OutlookMail
+                .To = EmailSupplier
+                .CC = EmailCC ' Add CC addresses
+                .Subject = Subject
+                .body = Message
+                .Send
+            End With
+        End If
+    Next i
+
+    MsgBox "The lead time confirmation email has been successfully sent to the relevant supplier", vbInformation
+End Sub
+
+"Confirmation of delivery date "
+
+Sub DelivryConfirmationMail()
+
+    Dim wsTrack As Worksheet
+    Dim wsSuppliers As Worksheet
+    Dim wsTemplates As Worksheet
+    Dim lastRow As Long
+    Dim lastRowSupplier As Long
+    Dim i As Long, j As Long
+    Dim supplierName As String
+    Dim orderDate As Date
+    Dim leadTime As Integer
+    Dim quantity As Double
+    Dim unit As String
+    Dim materialDesc As String
+    Dim currentDate As Date
+    Dim supplierEmail As String
+    Dim Email As String
+    Dim Subject As String
+    Dim Message As String
+    Dim templateRow As Long
+    Dim OutlookApp As Object
+    Dim OutlookMail As Object
+    
+    ' Set your worksheets
+    Set wsTracking = ThisWorkbook.Sheets("Reception Tracking")
+    
+    Set wsSuppliers = ThisWorkbook.Sheets("Suppliers")
+    Set wsTemplates = ThisWorkbook.Sheets("Email Template DB")
+    
+    ' Get the last row of the Reception Tracking sheet
+   lastRowTracking = wsTracking.Cells(wsTracking.Rows.Count, "A").End(xlUp).Row
+    ' Get the last row of the Suppliers sheet
+    lastRowSupplier = wsSuppliers.Cells(wsSuppliers.Rows.Count, "A").End(xlUp).Row
+    
+    ' Get the current date
+    currentDate = Date
+    
+    ' Loop through each row in the Reception Tracking sheet
+    For i = 7 To lastRow ' Assuming headers are in row 6 or earlier
+        
+        ' Retrieve data from Reception Tracking sheet
+        supplierName = wsTrack.Cells(i, 5).Value
+        orderDate = wsTrack.Cells(i, 11).Value
+        leadTime = wsTrack.Cells(i, 13).Value
+        materialDesc = wsTrack.Cells(i, 8).Value
+        quantity = wsTrack.Cells(i, 9).Value
+        unit = wsTrack.Cells(i, 10).Value
+        
+        ' Check if the current date is greater than the order date + lead time
+        If currentDate > (orderDate + leadTime) Then
+            
+            ' Find supplier email in Suppliers sheet
+            Email = ""
+            For j = 2 To lastRowSupplier ' Assuming headers in row 1
+                If wsSuppliers.Cells(j, "F").Value = supplierName Then
+                    Email = wsSuppliers.Cells(j, "G").Value
+                    Exit For
+                End If
+            Next j
+            
+            ' Find the corresponding template row in Email Template DB sheet
+            templateRow = 0
+            For j = 2 To wsTemplates.Cells(wsTemplates.Rows.Count, "B").End(xlUp).Row
+                If wsTemplates.Cells(j, "B").Value = "Confirmation Delivry Date" Then
+                    templateRow = j
+                    Exit For
+                End If
+            Next j
+            
+            ' If template row found and supplier email is valid, send email
+            If templateRow > 0 And Email <> "" Then
+                Subject = wsTemplates.Cells(templateRow, "D").Value
+                Message = wsTemplates.Cells(templateRow, "E").Value
+                
+                ' Replace placeholders with actual values
+                Message = Replace(Message, "[Supplier's Name]", supplierName)
+                Message = Replace(Message, "[Description1]", materialDesc)
+                Message = Replace(Message, "[Descrition2]", quantity & " " & unit)
+                
+                ' Create and send email using Outlook
+                Set OutlookApp = CreateObject("Outlook.Application")
+                Set OutlookMail = OutlookApp.CreateItem(0)
+                
+                With OutlookMail
+                    .To = Email
+                    .Subject = Subject
+                    .body = Message
+                    .Send
+                End With
+                
+                ' Clean up Outlook objects
+                Set OutlookMail = Nothing
+                Set OutlookApp = Nothing
+            End If
+        End If
+    Next i
+    
+    ' Display confirmation message
+    MsgBox "The confirmation email for the scheduled delivery has been sent.", vbInformation
+
+End Sub
+
